@@ -46,6 +46,39 @@ Keep `"strict": true` in `tsconfig.json` (Vite and Next.js both turn it on). Avo
 
 Keep these open: the [TypeScript Handbook](https://www.typescriptlang.org/docs/handbook/intro.html) and the [React TypeScript Cheatsheet](https://react-typescript-cheatsheet.netlify.app/).
 
+## Styling with Sass
+
+You'll write styles in Sass (`.scss` files). Vite and Next.js both compile it once the `sass` package is installed, with no extra config.
+
+- **Shared values live in partials** in `src/styles/`: `_tokens.scss` for colors, spacing, and breakpoints, and `_mixins.scss` for reusable chunks like focus rings.
+- **Component styles are CSS Modules**: `PlantCard.module.scss` sits next to `PlantCard.tsx` and is imported as `import styles from "./PlantCard.module.scss"`. Class names are scoped to that component, so two components can both have a `.title` without clashing.
+- **Use `@use`, never `@import`.** `@import` is deprecated and will be removed from Sass. Pull in partials with `@use "../styles/tokens" as *;` (or keep the namespace: `tokens.$color-overdue`).
+- **Keep nesting shallow**, two levels at most. Deep nesting makes selectors hard to override.
+
+```scss
+// src/styles/_tokens.scss
+$space: 0.5rem;
+$radius: 0.75rem;
+
+$status-colors: (
+  "overdue": #b3261e,
+  "today": #8a5a00,
+  "later": #2e6b30,
+);
+```
+
+```scss
+// src/styles/_mixins.scss
+@mixin focus-ring {
+  &:focus-visible {
+    outline: 3px solid currentColor;
+    outline-offset: 2px;
+  }
+}
+```
+
+Keep the [Sass docs](https://sass-lang.com/documentation/) open alongside the TypeScript ones.
+
 ## Stage 0: Setup
 
 Goal: a blank React app running locally, with a folder layout you'll grow into.
@@ -56,14 +89,19 @@ Goal: a blank React app running locally, with a folder layout you'll grow into.
 - [x] Delete the demo content in `App.tsx` and render a heading that says "Bubs' Shelf"
 - [x] Create the folders below
 - [x] `git init` and make your first commit
+- [x] Run `npm install -D sass`
+- [x] Rename `index.css` to `index.scss` and update the import in `main.tsx`; delete the empty `App.css` and its import
+- [x] Create `src/styles/` with `_tokens.scss` and `_mixins.scss` (start them from the examples in "Styling with Sass")
 
 ```
 src/
-  components/   PlantCard.tsx, PlantForm.tsx, Timer.tsx...
+  components/   PlantCard.tsx + PlantCard.module.scss, PlantForm.tsx, Timer.tsx...
   hooks/        useLocalStorage.ts, useTimer.ts
   types/        plant.ts, session.ts, labubu.ts
   utils/        dates.ts
   pages/        PlantsPage.tsx, SessionPage.tsx, LabubuPage.tsx
+  styles/       _tokens.scss, _mixins.scss
+  index.scss
   App.tsx
 ```
 
@@ -143,7 +181,28 @@ The key idea is **derived state**: don't store "days until thirsty." Calculate i
 - [ ] Add a "Watered" button that sets `lastWatered` to today
 - [ ] Add `history: string[]` to the `Plant` type, then fix every error the compiler shows you. It lists every place that needs updating.
 - [ ] Show a "3 plants need water today" summary at the top
-- [ ] Now style it: cards in a grid, colors for overdue and due
+- [ ] Now style it: create `PlantCard.module.scss` and lay the cards out in a CSS grid
+- [ ] Color the badges from the `$status-colors` map with an `@each` loop, so a new status only needs a new map entry
+- [ ] Use `$space` and `$radius` from your tokens instead of typing raw values
+
+```scss
+// src/components/PlantCard.module.scss
+@use "../styles/tokens" as *;
+
+.badge {
+  padding: $space * 0.5 $space;
+  border-radius: $radius;
+
+  @each $status, $color in $status-colors {
+    &.#{$status} {
+      color: $color;
+      border: 2px solid $color;
+    }
+  }
+}
+```
+
+In `PlantCard.tsx`, combine classes with ``className={`${styles.badge} ${styles[status]}`}``.
 
 Watch out: dates are tricky in JavaScript. Store dates as `"YYYY-MM-DD"` strings and compare whole days, not timestamps, or a plant watered at 11pm will show up wrong the next morning.
 
@@ -153,9 +212,9 @@ Watch out: dates are tricky in JavaScript. Store dates as `"YYYY-MM-DD"` strings
 - [ ] Check text contrast is at least 4.5:1 (axe and DevTools both show this)
 - [ ] Mark the active filter button with `aria-pressed="true"`
 - [ ] Add a `role="status"` region that announces "Monstera watered" when you tap Watered
-- [ ] Make sure the focus outline is clearly visible on every button and input
+- [ ] Make sure the focus outline is clearly visible on every button and input: `@include focus-ring;` from `_mixins.scss` keeps it the same everywhere
 
-**What you'll learn:** derived state, pure helper functions, sorting and filtering without changing the original array, conditional rendering.
+**What you'll learn:** derived state, pure helper functions, sorting and filtering without changing the original array, conditional rendering, Sass partials, `@use`, variables, maps, `@each`, CSS Modules.
 
 **Done when:** you open the app in the morning and it tells you exactly what to water.
 
@@ -248,7 +307,7 @@ Timers are one of the trickiest things to make accessible, which makes this the 
 - [ ] Don't announce every second: a screen reader reading "2:59, 2:58..." is unusable. Announce changes like "1 minute left" and "Time's up" in a polite live region
 - [ ] When the session moves to the next plant, move focus to that plant's heading
 - [ ] Never signal the end of a timer with sound or animation alone, always with text too
-- [ ] Respect `prefers-reduced-motion` for any countdown rings or transitions
+- [ ] Respect `prefers-reduced-motion` for any countdown rings or transitions: add a `motion-ok` mixin to `_mixins.scss` that wraps its content in `@media (prefers-reduced-motion: no-preference)`, and put every animation inside it
 - [ ] Do a full session with only the keyboard, then with your eyes closed using a screen reader
 
 **What you'll learn:** `useEffect` cleanup, `useRef`, stale state, `useReducer`, state machines, custom hooks.
@@ -296,7 +355,8 @@ const macaron: Series = {
 - [ ] Show "7 of 12" and a progress bar per series (derived, like Stage 2)
 - [ ] Add a Trade list view that shows only duplicates
 - [ ] Move collection updates into `useReducer` with actions like `ADD_FIGURE` and `SET_STATUS`
-- [ ] Look at `PlantCard` and your new figure card side by side and pull out a shared `Card` component
+- [ ] Look at `PlantCard` and your new figure card side by side and pull out a shared `Card` component, with the shared styles moving into `Card.module.scss`
+- [ ] Add figure-status colors as a second map in `_tokens.scss` and reuse the `@each` pattern from Stage 2
 - [ ] Save to localStorage with the `useLocalStorage` hook you made in Stage 1
 
 Watch out: updating one figure inside one series means copying both levels. If an update "doesn't show," you probably changed the old object instead of making a new one.
@@ -332,7 +392,9 @@ You already understand every feature, so each change shows you exactly what Next
 **Part A: the move**
 
 - [ ] Run `npx create-next-app@latest bubs-shelf-next` and choose TypeScript and the App Router
-- [ ] Copy `components/`, `hooks/`, `utils/`, and `types/` across
+- [ ] Run `npm install -D sass` in the new project
+- [ ] Copy `components/`, `hooks/`, `utils/`, `types/`, and `styles/` across. The `.module.scss` files work unchanged
+- [ ] Import `index.scss` once in `app/layout.tsx` (Next only allows global styles there)
 - [ ] Recreate each page as a folder in `app/`, and move your nav into `app/layout.tsx`
 - [ ] Swap React Router's `<Link>` for Next's `<Link>` from `next/link`
 - [ ] Add `"use client"` to the top of any component that uses state, effects, refs, or click handlers, and notice which ones need it
